@@ -687,11 +687,11 @@ export function NetworkDesignAssistant() {
                 </div>
                 <div>
                   <Label htmlFor="officeUsers">Office Users</Label>
-                  <Input type="number" id="officeUsers" name="officeUsers" value={formData.officeUsers} onChange={handleInputChange} min={1} required placeholder="Enter number of office users" />
+                  <Input type="number" id="officeUsers" name="officeUsers" value={formData.officeUsers} onChange={handleInputChange} min={0}  placeholder="Enter number of office users" />
                 </div>
                 <div>
                   <Label htmlFor="remoteUsers">Remote Users</Label>
-                  <Input type="number" id="remoteUsers" name="remoteUsers" value={formData.remoteUsers} onChange={handleInputChange} min={0} required placeholder="Enter number of remote users" />
+                  <Input type="number" id="remoteUsers" name="remoteUsers" value={formData.remoteUsers} onChange={handleInputChange} min={0}  placeholder="Enter number of remote users" />
                 </div>
                 <div>
                   <Label htmlFor="departments">Departments</Label>
@@ -711,9 +711,9 @@ export function NetworkDesignAssistant() {
                         return newData.slice(0, newDeptCount)
                       })
                     }}
-                    min={1}
+                    min={0}
                     max={10}
-                    required
+                    
                     placeholder="Enter number of departments"
                   />
                 </div>
@@ -726,7 +726,7 @@ export function NetworkDesignAssistant() {
                       value={dept.name}
                       onChange={(e) => handleDepartmentChange(index, 'name', e.target.value)}
                       placeholder="Department Name"
-                      required
+                      
                     />
                     <div className="flex space-x-2">
                       <TooltipProvider>
@@ -738,7 +738,7 @@ export function NetworkDesignAssistant() {
                               onChange={(e) => handleDepartmentChange(index, 'users', parseInt(e.target.value) || 0)}
                               placeholder="Users"
                               min={0}
-                              required
+                              
                             />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -755,7 +755,7 @@ export function NetworkDesignAssistant() {
                               onChange={(e) => handleDepartmentChange(index, 'servers', parseInt(e.target.value) || 0)}
                               placeholder="Servers"
                               min={0}
-                              required
+                              
                             />
                           </TooltipTrigger>
                           <TooltipContent>
@@ -772,7 +772,7 @@ export function NetworkDesignAssistant() {
                               onChange={(e) => handleDepartmentChange(index, 'printers', parseInt(e.target.value) || 0)}
                               placeholder="Printers"
                               min={0}
-                              required
+                              
                             />
                           </TooltipTrigger>
                           <TooltipContent>
