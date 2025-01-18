@@ -646,7 +646,7 @@ export function NetworkDesignAssistant() {
 
   return (
     <div className="container mx-auto p-4 bg-blue-50">
-      <h1 className="text-3xl font-bold mb-6 text-center text-blue-800">Professional Network Design Assistant for SMEs</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-blue-800">Network Design Assistant for SMEs</h1>
       {error && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
