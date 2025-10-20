@@ -13,6 +13,7 @@ Check it out live: [i-net-assist.vercel.app](https://i-net-assist.vercel.app)
 - **Dynamic IP Allocation**: Optimized IP address management and allocation for better network planning.
 - **Cost Estimation**: Estimate the costs associated with your network design for better budgeting.
 - **Google Gemini AI Chat Integration**: Integrated AI chat for real-time support and guidance during the design process.
+- **S3Guard Lambda**: Optional serverless function that monitors S3 buckets and alerts on public access.
 
 ---
 
