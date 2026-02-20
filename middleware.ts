@@ -1,36 +1,28 @@
-import { createServerClient, serializeCookieHeader } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
-
-  const supabase = createServerClient(
+  // Create a Supabase client with the service role key for server-side operations
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getSetCookie();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // This refreshes the user's session in case it has expired
-  // The session is stored in cookies, so this is safe to call every request
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Get the user session from cookies
+  const token = request.cookies.get("sb-access-token")?.value;
+  let user = null;
+
+  if (token) {
+    try {
+      const { data } = await supabase.auth.getUser(token);
+      user = data?.user || null;
+    } catch (error) {
+      console.error("Error getting user in middleware:", error);
+    }
+  }
 
   // Protected routes
-  const protectedRoutes = ["/dashboard", "/projects", "/settings"];
+  const protectedRoutes = ["/dashboard", "/designer", "/settings"];
   const pathname = request.nextUrl.pathname;
 
   // Check if the current route is protected
@@ -51,7 +43,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return supabaseResponse;
+  return NextResponse.next();
 }
 
 export const config = {
