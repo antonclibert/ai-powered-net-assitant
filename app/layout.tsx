@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { AuthProvider } from "@/components/providers/auth-provider";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -14,8 +15,10 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "AI Net Assist",
-  description: "AI-Powered Network Design Assistant for Automated Diagrams, IP Allocation, Device Selection, and Cost Estimation for SMEs",
+  title: "AI Net Assist - Network Design Assistant",
+  description: "AI-Powered Network Design Assistant with real-time collaboration, intelligent recommendations, and comprehensive design tools for modern IT infrastructure",
+  keywords: "network design, AI assistant, network planning, IT infrastructure, device selection",
+  viewport: "width=device-width, initial-scale=1",
 };
 
 export default function RootLayout({
@@ -28,7 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
