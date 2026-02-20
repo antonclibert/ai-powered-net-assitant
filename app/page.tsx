@@ -37,6 +37,9 @@ export default function Page() {
             <span className="text-xl font-bold text-gray-900">AI Net Assist</span>
           </div>
           <div className="flex gap-4">
+            <Link href="/setup">
+              <Button variant="ghost" className="text-sm">Setup</Button>
+            </Link>
             <Link href="/auth/login">
               <Button variant="ghost">Sign In</Button>
             </Link>
