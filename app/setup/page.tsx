@@ -23,7 +23,14 @@ export default function SetupPage() {
     try {
       // Step 1: Initialize database schema
       setSteps((prev) => ({ ...prev, database: true }));
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const initResponse = await fetch('/api/init-db', {
+        method: 'POST',
+      });
+      
+      if (!initResponse.ok) {
+        const errorData = await initResponse.json();
+        throw new Error(errorData.error || 'Failed to initialize database');
+      }
 
       // Step 2: Verify authentication
       setSteps((prev) => ({ ...prev, auth: true }));
@@ -31,6 +38,10 @@ export default function SetupPage() {
 
       // Step 3: Check AI integration
       setSteps((prev) => ({ ...prev, ai: true }));
+      const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (!geminiKey) {
+        console.warn('Gemini API key not configured');
+      }
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Step 4: Seed data
