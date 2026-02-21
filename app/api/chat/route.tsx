@@ -1,96 +1,163 @@
-import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { supabase } from "@/lib/supabase";
 
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.NEXT_PUBLIC_GEMINI_API_KEY}`;
+const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || "");
 
 export async function POST(req: Request) {
   try {
-    const { messages, context } = await req.json();
+    const { messages, conversationId } = await req.json();
 
-    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "Gemini API key not configured" },
-        { status: 500 }
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid messages format" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const userMessage = messages[messages.length - 1]?.content || "";
+    if (!process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "Gemini API key not configured" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
-    // Update context: Remove the first question (answered question)
-    const updatedQuestions = context.questions.slice(1);
+    // Build system prompt for network design assistant
+    const systemPrompt = `You are an expert Network Design Assistant. Your role is to help users design robust, scalable, and secure network infrastructure for SMEs and enterprises.
 
-    // Build the prompt for the Gemini API
-    const systemPrompt = `
-      You are a network design assistant helping non-technical users. 
-      The user is answering questions to help design their network. 
-      Your role is to:
-      - Provide guidance based on the collected information so far.
-      - Avoid repeating questions already answered.
-      - Ask the next pending question or summarize collected data if all questions are answered.
+When helping users:
+1. Ask clarifying questions about their requirements (company size, budget, users, office locations, etc.)
+2. Provide specific device recommendations with realistic costs
+3. Consider redundancy, security, and scalability in your designs
+4. Estimate costs and suggest budget allocation (core infrastructure 35%, security 25%, wireless 20%, redundancy 20%)
+5. Suggest best practices for their specific scenario
+6. Provide network topology recommendations
+7. Help with IP allocation strategies
 
-      CURRENT COLLECTED INFORMATION: ${JSON.stringify(context.collectedInfo)}
-      PENDING QUESTIONS: ${JSON.stringify(updatedQuestions)}
-      LATEST USER MESSAGE: ${userMessage}
+Example device recommendations by category:
+- Core Switches: Cisco Catalyst 9200, Dell PowerConnect, Arista CloudVision
+- Security: Fortinet FortiGate, Cisco ASA, Palo Alto Networks
+- Wireless: Cisco Aironet, Ubiquiti UniFi, TP-Link EAP series
+- Routers: Cisco ISR, Juniper SRX, Fortinet FortiRouter
 
-      RESPONSE STRATEGY:
-      - If there are pending questions, ask the next one.
-      - If all questions are answered, provide a clear, non-technical summary and recommendations.
-    `;
+Always be professional, technical yet accessible, and provide actionable recommendations with cost estimates.`;
 
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            {
-              text: systemPrompt,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 256,
-      },
-    };
+    // Convert messages to Gemini format
+    const conversationHistory = messages.map((msg: any) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    }));
 
-    const response = await fetch(GEMINI_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(requestBody),
+    // Get Gemini model
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: systemPrompt,
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Gemini API error: ${response.status} ${errorText}`);
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-    }
+    // Start a chat session
+    const chat = model.startChat({
+      history: conversationHistory.slice(0, -1), // All messages except the last
+    });
 
-    const data = await response.json();
+    // Get the last user message
+    const lastMessage = messages[messages.length - 1];
+    const userInput = lastMessage.content;
 
-    if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-      // Update collected information if necessary
-      const updatedContext = {
-        ...context,
-        questions: updatedQuestions,
-        stage: updatedQuestions.length === 0 ? "recommending" : "gathering",
-      };
+    // Create a readable stream for streaming response
+    const encoder = new TextEncoder();
+    let assistantContent = "";
 
-      // Return the assistant's response and the updated context
-      return NextResponse.json({
-        content: data.candidates[0].content.parts[0].text,
-        context: updatedContext,
-      });
-    } else {
-      throw new Error("Invalid response from Gemini API");
-    }
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          // Call the API with streaming
+          const stream = await chat.sendMessageStream(userInput);
+
+          for await (const chunk of stream.stream) {
+            const text = chunk.text();
+            assistantContent += text;
+
+            // Send each chunk as SSE
+            const data = {
+              type: "text-delta",
+              delta: text,
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+            );
+          }
+
+          // Send completion message
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ type: "text-finish", finishReason: "stop" })}\n\n`
+            )
+          );
+
+          // Save the conversation to database if conversationId is provided
+          if (conversationId) {
+            try {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                // Save user message
+                await supabase.from("chat_messages").insert([
+                  {
+                    conversation_id: conversationId,
+                    user_id: user.id,
+                    role: "user",
+                    content: userInput,
+                  },
+                ]);
+
+                // Save assistant message
+                await supabase.from("chat_messages").insert([
+                  {
+                    conversation_id: conversationId,
+                    user_id: user.id,
+                    role: "assistant",
+                    content: assistantContent,
+                  },
+                ]);
+              }
+            } catch (dbError) {
+              console.error("Error saving to database:", dbError);
+              // Continue even if database save fails
+            }
+          }
+
+          controller.close();
+        } catch (error) {
+          console.error("Error in chat stream:", error);
+          const errorData = {
+            type: "error",
+            error:
+              error instanceof Error
+                ? error.message
+                : "Unknown error occurred",
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(errorData)}\n\n`));
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
-    console.error("Error calling Gemini API:", (error as Error).message);
-    return NextResponse.json(
-      { error: "Failed to generate response", details: (error as Error).message },
-      { status: 500 }
+    console.error("Error in chat API:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Failed to process request",
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
     );
-
   }
 }
